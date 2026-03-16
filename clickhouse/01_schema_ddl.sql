@@ -49,7 +49,6 @@ CREATE TABLE IF NOT EXISTS web_events.events
 ENGINE = ReplacingMergeTree()
 PARTITION BY toYYYYMM(event_time)   -- Monthly partition (YYYYMM)
 ORDER BY (event_time, visitor_id)
-TTL toDate(event_time) + INTERVAL 2 YEAR
 SETTINGS index_granularity = 8192;
 
 -- =============================================================================

@@ -46,7 +46,7 @@
   <li><strong>ReplacingMergeTree Engine:</strong> Automatically handles event deduplication by ORDER BY key (event_time, visitor_id), ensuring your dashboards always report accurate numbers.</li>
   <li><strong>Optimized Column Types:</strong> Heavy use of LowCardinality(String) and Enum8 for dimensions like source, device_type, and platform. This drastically reduces storage size and accelerates filter/aggregation queries.</li>
   <li><strong>Native JSON Support:</strong> Replaces the raw string column with ClickHouse's Native JSON type (requires v25.3+), allowing dynamic event properties to be queried much faster.</li>
-  <li><strong>Automated Lifecycle Management:</strong> Implements a strict TTL (Time-To-Live) to automatically drop data older than 2 years, optimizing storage costs. Monthly partitioning (toYYYYMM) ensures queries scanning specific date ranges are lightning-fast.</li>
+  <li><strong>Automated Lifecycle Management:</strong> Monthly partitioning (toYYYYMM) ensures queries scanning specific date ranges are lightning-fast.</li>
 </ul>
 
 <h3>Current vs. Proposed Schema Comparison</h3>
@@ -54,7 +54,7 @@
   <tr><th>Feature</th><th>Current Schema</th><th>Proposed Schema</th><th>Business Impact</th></tr>
   <tr><td>Data Format</td><td>Unstructured (Raw JSON String)</td><td>Structured Columns + Native JSON</td><td>Queries will execute exponentially faster; simpler SQL for analysts.</td></tr>
   <tr><td>Deduplication</td><td>None (MergeTree)</td><td>Automated (ReplacingMergeTree)</td><td>Guaranteed accuracy for critical metrics like sign-ups and payments.</td></tr>
-  <tr><td>Storage Engine</td><td>Standard table</td><td>Partitioned by Month with 2-Year TTL</td><td>Reduced cloud infrastructure costs and automated data lifecycle management.</td></tr>
+  <tr><td>Storage Engine</td><td>Standard table</td><td>Partitioned by Month</td><td>Reduced cloud infrastructure costs and efficient date-range queries.</td></tr>
   <tr><td>Key Dimensions</td><td>Hidden inside JSON payload</td><td>Top-level optimized columns</td><td>Instant filtering by Country, Device, Traffic Source, and Subscription Plan.</td></tr>
 </table>
 </div>
@@ -100,7 +100,6 @@
 ENGINE = ReplacingMergeTree()
 PARTITION BY toYYYYMM(event_time)
 ORDER BY (event_time, visitor_id)
-TTL toDate(event_time) + INTERVAL 2 YEAR
 SETTINGS index_granularity = 8192;</pre>
 </div>
 
@@ -139,7 +138,7 @@ SETTINGS index_granularity = 8192;</pre>
 <p><strong>Answer:</strong></p>
 <table>
   <tr><th>Column</th><th>Type</th><th>Purpose</th></tr>
-  <tr><td>event_time</td><td>DateTime64(3, 'UTC')</td><td>When event occurred; partition/TTL use toDate(event_time)</td></tr>
+  <tr><td>event_time</td><td>DateTime64(3, 'UTC')</td><td>When event occurred; partitioning uses toDate(event_time)</td></tr>
 </table>
 <p><strong>Timezone:</strong> Store in UTC. Convert in Metabase/app for display.</p>
 </div>
@@ -164,7 +163,7 @@ SETTINGS index_granularity = 8192;</pre>
 <div class="section">
 <h3>Question 6: Data Volume</h3>
 <p><strong>Expected event volume and retention?</strong></p>
-<p><strong>Answer:</strong> Partitioning: <code>toYYYYMM(event_time)</code> (monthly). TTL: <code>toDate(event_time) + INTERVAL 2 YEAR</code>.</p>
+<p><strong>Answer:</strong> Partitioning: <code>toYYYYMM(event_time)</code> (monthly).</p>
 </div>
 
 <div class="section">

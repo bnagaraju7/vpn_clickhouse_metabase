@@ -24,7 +24,7 @@ We propose moving to a structured, unified event schema using ClickHouse's Repla
 - **ReplacingMergeTree Engine:** Automatically handles event deduplication by ORDER BY key (event_time, visitor_id), ensuring your dashboards always report accurate numbers.
 - **Optimized Column Types:** Heavy use of LowCardinality(String) and Enum8 for dimensions like source, device_type, and platform. This drastically reduces storage size and accelerates filter/aggregation queries.
 - **Native JSON Support:** Replaces the raw string column with ClickHouse's Native JSON type (requires v25.3+), allowing dynamic event properties to be queried much faster.
-- **Automated Lifecycle Management:** Implements a strict TTL (Time-To-Live) to automatically drop data older than 2 years, optimizing storage costs. Monthly partitioning (toYYYYMM) ensures queries scanning specific date ranges are lightning-fast.
+- **Automated Lifecycle Management:** Monthly partitioning (toYYYYMM) ensures queries scanning specific date ranges are lightning-fast.
 
 ### Current vs. Proposed Schema Comparison
 
@@ -32,7 +32,7 @@ We propose moving to a structured, unified event schema using ClickHouse's Repla
 |---------|----------------|-----------------|-----------------|
 | Data Format | Unstructured (Raw JSON String) | Structured Columns + Native JSON | Queries will execute exponentially faster; simpler SQL for analysts. |
 | Deduplication | None (MergeTree) | Automated (ReplacingMergeTree) | Guaranteed accuracy for critical metrics like sign-ups and payments. |
-| Storage Engine | Standard table | Partitioned by Month with 2-Year TTL | Reduced cloud infrastructure costs and automated data lifecycle management. |
+| Storage Engine | Standard table | Partitioned by Month | Reduced cloud infrastructure costs and efficient date-range queries. |
 | Key Dimensions | Hidden inside JSON payload | Top-level optimized columns | Instant filtering by Country, Device, Traffic Source, and Subscription Plan. |
 
 ---
@@ -85,7 +85,7 @@ We propose moving to a structured, unified event schema using ClickHouse's Repla
 
 | Column | Type | Purpose |
 |--------|------|---------|
-| **event_time** | `DateTime64(3, 'UTC')` | When the event occurred (client or server); partition/TTL use `toDate(event_time)` |
+| **event_time** | `DateTime64(3, 'UTC')` | When the event occurred (client or server); partitioning uses `toDate(event_time)` |
 
 **Timezone convention:** Store all timestamps in **UTC**. Apply timezone conversion only in Metabase or the application layer for display.
 
@@ -129,7 +129,7 @@ We propose moving to a structured, unified event schema using ClickHouse's Repla
 
 ## Question 6: Data Volume
 
-**What is the expected event volume (events/day) and retention period? This affects partitioning and TTL strategy.**
+**What is the expected event volume (events/day) and retention period? This affects partitioning strategy.**
 
 ### Answer
 
@@ -141,9 +141,8 @@ We propose moving to a structured, unified event schema using ClickHouse's Repla
 
 **Current configuration:**
 - **Partitioning:** `PARTITION BY toYYYYMM(event_time)` – monthly partitions
-- **TTL:** `toDate(event_time) + INTERVAL 2 YEAR` – 2-year retention
 
-**Recommendation:** Define expected volume and retention; adjust TTL and `index_granularity` accordingly.
+**Recommendation:** Define expected volume; adjust `index_granularity` accordingly.
 
 ---
 
