@@ -132,7 +132,7 @@ await trackEventServer({
 
 // Batch
 await trackEventsServer([
-  { event_type: 'page_viewed', landing_page: 'pricing', source: 'Direct' },
+  { event_type: 'page_viewed', page: 'pricing', source: 'Direct' },
   { event_type: 'checkout_started', message: { plan_selected: 'Monthly' } },
 ]);
 ```
@@ -148,7 +148,7 @@ await trackEventsServer([
 ```json
 {
   "event_type": "page_viewed",
-  "landing_page": "pricing",
+  "page": "pricing",
   "source": "Google",
   "device_type": "Desktop",
   "country": "US",

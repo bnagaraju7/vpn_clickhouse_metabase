@@ -1,0 +1,190 @@
+# Key Questions for the Data Engineer
+
+---
+
+## Executive Summary
+
+This proposal outlines a strategic enhancement to the existing ClickHouse web events tracking schema. The objective is to transition from a rigid, unstructured data model to a highly optimized, columnar architecture. This upgrade will significantly improve query performance, enable scalable reporting for user acquisition and authentication analytics, and ensure data accuracy through automated deduplication.
+
+### The Challenge: Current Implementation
+
+Currently, event data is stored primarily as raw JSON strings within a standard MergeTree table. While this allows for flexible data ingestion, it creates severe bottlenecks for analytics:
+
+- **Query Latency:** Extracting data requires parsing JSON on every query, which is highly CPU-intensive and slow.
+- **Data Accuracy:** The current engine lacks a deduplication mechanism, risking inflated event counts if a client sends the same event twice.
+- **Inefficient Scans:** Without structured columns for common dimensions (like device, platform, or source), queries must scan the entire table rather than targeting specific column files.
+- **Limited Capabilities:** Tracking complex flows like user acquisition, checkout funnels, and authentication drop-offs is cumbersome and difficult to scale.
+
+### The Solution: Proposed Architecture Highlights
+
+We propose moving to a structured, unified event schema using ClickHouse's ReplacingMergeTree engine. This design extracts key business dimensions into dedicated columns while retaining flexibility for custom event properties.
+
+### Key Technical Upgrades
+
+- **ReplacingMergeTree Engine:** Automatically handles event deduplication by ORDER BY key (event_time, visitor_id), ensuring your dashboards always report accurate numbers.
+- **Optimized Column Types:** Heavy use of LowCardinality(String) and Enum8 for dimensions like source, device_type, and platform. This drastically reduces storage size and accelerates filter/aggregation queries.
+- **Native JSON Support:** Replaces the raw string column with ClickHouse's Native JSON type (requires v25.3+), allowing dynamic event properties to be queried much faster.
+- **Automated Lifecycle Management:** Implements a strict TTL (Time-To-Live) to automatically drop data older than 2 years, optimizing storage costs. Monthly partitioning (toYYYYMM) ensures queries scanning specific date ranges are lightning-fast.
+
+### Current vs. Proposed Schema Comparison
+
+| Feature | Current Schema | Proposed Schema | Business Impact |
+|---------|----------------|-----------------|-----------------|
+| Data Format | Unstructured (Raw JSON String) | Structured Columns + Native JSON | Queries will execute exponentially faster; simpler SQL for analysts. |
+| Deduplication | None (MergeTree) | Automated (ReplacingMergeTree) | Guaranteed accuracy for critical metrics like sign-ups and payments. |
+| Storage Engine | Standard table | Partitioned by Month with 2-Year TTL | Reduced cloud infrastructure costs and automated data lifecycle management. |
+| Key Dimensions | Hidden inside JSON payload | Top-level optimized columns | Instant filtering by Country, Device, Traffic Source, and Subscription Plan. |
+
+---
+
+## Question 1: Unified vs. Separate Tables
+
+**Should all events live in a single wide table (with an event_type column) or should each event have its own table? What are the trade-offs for our query patterns?**
+
+### Answer
+
+**Recommendation: Use a single unified table** (with an `event_type` column).
+
+| Aspect | Unified Table | Separate Tables |
+|--------|---------------|------------------|
+| **Funnel queries** | Single table, `event_type IN (...)` – no JOINs | Requires JOINs across multiple tables |
+| **Schema evolution** | Add columns; event-specific fields use Nullable | Each table evolves independently |
+| **Storage** | Sparse columns; Nullable for event-specific fields | More tables, more parts to manage |
+| **Metabase** | One connection, simpler dashboards | Multiple tables, more complex joins |
+| **Materialized views** | One source table, filter by `event_type` | One MV per table or more complex logic |
+
+**Use separate tables only if:** event types differ significantly in schema, retention, or access control requirements.
+
+---
+
+## Question 2: Column Types
+
+**What is the recommended ClickHouse type for source and page_name (LowCardinality(String) vs Enum)? How should we handle nullable fields like card_type?**
+
+### Answer
+
+| Column | Recommendation | Rationale |
+|--------|----------------|-----------|
+| **source** | `LowCardinality(String)` | Easy to add new values (e.g., "TikTok") without ALTER |
+| **page_name / page** | `LowCardinality(String)` | Same flexibility for dynamic page catalogs |
+| **Nullable fields (card_type, etc.)** | `Nullable(LowCardinality(String))` | Use `Nullable()` for optional event-specific fields |
+
+**LowCardinality vs Enum:**
+- **LowCardinality(String):** Flexible; good when values evolve (new sources, pages).
+- **Enum8/Enum16:** Strict and compact, but requires `ALTER` for new values.
+
+**card_type:** Use `Nullable(LowCardinality(String))` – only populated when `payment_method` is Credit Card.
+
+---
+
+## Question 3: Timestamp Handling
+
+**What timestamp columns should be added (event_time)? What timezone convention should be used?**
+
+### Answer
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| **event_time** | `DateTime64(3, 'UTC')` | When the event occurred (client or server); partition/TTL use `toDate(event_time)` |
+
+**Timezone convention:** Store all timestamps in **UTC**. Apply timezone conversion only in Metabase or the application layer for display.
+
+---
+
+## Question 4: Session Tracking
+
+**Should we implement session_id to group page_viewed events into sessions? If so, what is the recommended approach?**
+
+### Answer
+
+**Recommendation: Use `visitor_id`** (renamed from session_id for clarity).
+
+**Approach:**
+1. **Client-generated:** Generate UUID on first page load; persist in `sessionStorage` for the browser tab session.
+2. **Server-assigned:** If client does not send it, assign `generateUUIDv4()` on insert.
+3. **Session boundaries:** 30 minutes of inactivity, or explicit end (e.g., logout).
+
+**Implementation:** `getOrCreateVisitorId()` in analytics client – stored in `sessionStorage` under `analytics_visitor_id`.
+
+**Query usage:** Funnels use `coalesce(device_id, visitor_id, email_hash)` as the user key for grouping.
+
+---
+
+## Question 5: Query Patterns
+
+**What are the most performance-critical queries we need to optimize for? (e.g., daily page views by source, weekly conversion funnels)**
+
+### Answer
+
+| Query Pattern | Example | Optimization |
+|---------------|---------|--------------|
+| **Daily page views by source** | `GROUP BY toDate(event_time), page, source` | Materialized view `mv_daily_page_views` |
+| **Weekly conversion funnels** | Magic Link, Password/OTP, Pricing→Purchase | `ORDER BY (event_time, visitor_id)`; consider funnel-specific MVs if volume grows |
+| **Date-range filters** | `toDate(event_time) BETWEEN {{date_from}} AND {{date_to}}` | Partition pruning via `toYYYYMM(event_time)` |
+| **Event-type filters** | `event_type = 'page_viewed'` | `event_type` in ORDER BY key |
+
+**Existing MVs:** `mv_daily_signup_started`, `mv_daily_signup_completed`, `mv_daily_page_views`.
+
+---
+
+## Question 6: Data Volume
+
+**What is the expected event volume (events/day) and retention period? This affects partitioning and TTL strategy.**
+
+### Answer
+
+| Events/Day | Rows/Month | Notes |
+|------------|------------|-------|
+| 10K | ~300K | Single node, default settings |
+| 100K | ~3M | Consider `index_granularity = 16384` |
+| 1M+ | 30M+ | Sharding, possibly `ReplicatedMergeTree` |
+
+**Current configuration:**
+- **Partitioning:** `PARTITION BY toYYYYMM(event_time)` – monthly partitions
+- **TTL:** `toDate(event_time) + INTERVAL 2 YEAR` – 2-year retention
+
+**Recommendation:** Define expected volume and retention; adjust TTL and `index_granularity` accordingly.
+
+---
+
+## Question 7: Metabase Configuration
+
+**Are there specific Metabase best practices for ClickHouse connections? (e.g., query timeouts, caching)**
+
+### Answer
+
+| Setting | Recommendation |
+|--------|-----------------|
+| **Query timeout** | 60–120 seconds for heavy funnel queries |
+| **Caching** | Enable; 24h for dashboards, 1h for ad-hoc |
+| **Connection** | Use native HTTP or JDBC; HTTP preferred for simplicity |
+| **Sync metadata** | Limit to `web_events` database to avoid long syncs |
+| **FINAL usage** | Use `FINAL` only when deduplication is required; most aggregates work without it |
+
+---
+
+## Question 8: Access Patterns
+
+**Who will query the data? Analysts via SQL, dashboards only, or application-layer queries?**
+
+### Answer
+
+| Audience | Pattern | Implications |
+|----------|----------|--------------|
+| **Analysts (SQL)** | Ad-hoc queries, Metabase | Document schema; ensure MVs and filters are available |
+| **Dashboards only** | Predefined Metabase questions | Optimize MVs for these queries |
+| **Application layer** | API-driven inserts; no direct reads | Keep insert path simple; no special DDL needs |
+
+**Current setup:** Analysts + dashboards. Unified table and MVs are sufficient; add more MVs only if specific queries become slow.
+
+---
+
+NOTE: RARE CASE — DEDUPLICATION BY visitor_id AND TIMESTAMP
+
+Default behavior: ReplacingMergeTree deduplicates by ORDER BY key (event_time, visitor_id). Same visitor + same timestamp = one row kept. Different event types at same timestamp = separate rows.
+
+Rare case: If the same visitor sends duplicate events with the same visitor_id and same timestamp (e.g., double-click, retry), ReplacingMergeTree will deduplicate them. Use SELECT ... FROM events FINAL or argMax/any with GROUP BY when aggregating if needed.
+
+---
+
+*Document generated from project design decisions.*

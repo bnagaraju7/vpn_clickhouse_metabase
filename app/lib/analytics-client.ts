@@ -3,10 +3,27 @@
 import type { WebEvent } from '../types/events';
 
 const DEFAULT_ENDPOINT = '/api/events';
+const VISITOR_STORAGE_KEY = 'analytics_visitor_id';
+
+/** Get or create visitor ID (persists for browser tab session) */
+function getOrCreateVisitorId(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    let id = sessionStorage.getItem(VISITOR_STORAGE_KEY);
+    if (!id) {
+      id = crypto.randomUUID();
+      sessionStorage.setItem(VISITOR_STORAGE_KEY, id);
+    }
+    return id;
+  } catch {
+    return '';
+  }
+}
 
 /**
  * Client-side event tracking.
  * Sends events to the Next.js API (which forwards to ClickHouse).
+ * Injects visitor_id and event_time if not provided.
  */
 export async function trackEvent(event: WebEvent): Promise<void> {
   const endpoint =
@@ -15,10 +32,15 @@ export async function trackEvent(event: WebEvent): Promise<void> {
       : DEFAULT_ENDPOINT;
 
   try {
+    const enriched: WebEvent = {
+      ...event,
+      visitor_id: event.visitor_id ?? getOrCreateVisitorId() || undefined,
+      event_time: event.event_time ?? new Date().toISOString(),
+    };
     const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(event),
+      body: JSON.stringify(enriched),
       keepalive: true,
     });
 
@@ -34,12 +56,12 @@ export async function trackEvent(event: WebEvent): Promise<void> {
  * Track page view (client-side).
  */
 export function trackPageView(
-  landingPage: WebEvent['landing_page'],
-  options?: Partial<Pick<WebEvent, 'source' | 'device_type' | 'country' | 'platform' | 'session_id'>>
+  page: WebEvent['page'],
+  options?: Partial<Pick<WebEvent, 'source' | 'device_type' | 'country' | 'platform' | 'visitor_id'>>
 ) {
   trackEvent({
     event_type: 'page_viewed',
-    landing_page: landingPage,
+    page: page,
     ...options,
   });
 }
@@ -138,7 +160,7 @@ export function trackCheckoutIncomplete(
   trackEvent({
     event_type: 'checkout_incomplete',
     message,
-    landing_page: 'checkout',
+    page: 'checkout',
     ...options,
   });
 }
@@ -147,12 +169,14 @@ export function trackCheckoutIncomplete(
  * Track payment method added.
  */
 export function trackPaymentMethodAdded(
-  message: WebEvent['message'] & { payment_method?: string },
+  message: WebEvent['message'] & { payment_method?: string; card_type?: string },
   options?: Partial<WebEvent>
 ) {
   trackEvent({
     event_type: 'payment_method_added',
     message,
+    payment_method: (message?.payment_method ?? options?.payment_method) as WebEvent['payment_method'],
+    card_type: (message?.card_type ?? options?.card_type) as WebEvent['card_type'],
     ...options,
   });
 }

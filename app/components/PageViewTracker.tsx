@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { trackPageView } from '@/lib/analytics-client';
 import type { LandingPage } from '@/types/events';
 
-/** Map pathname to landing_page enum */
+/** Map pathname to page enum */
 function pathToLandingPage(pathname: string): LandingPage {
   if (pathname === '/' || pathname === '') return 'homepage';
   if (pathname.includes('pricing')) return 'pricing';

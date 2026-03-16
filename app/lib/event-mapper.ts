@@ -7,11 +7,11 @@ import type { EventPayload } from '../types/events';
 export function mapEventToClickHouse(payload: Omit<EventPayload, '_source'>): Record<string, unknown> {
   const {
     event_type,
-    event_date,
+    event_time,
     source,
     device_type,
     country,
-    landing_page,
+    page,
     platform,
     app_version,
     transaction_id,
@@ -20,20 +20,21 @@ export function mapEventToClickHouse(payload: Omit<EventPayload, '_source'>): Re
     amount,
     currency,
     payment_method,
+    card_type,
     message,
     user_id,
     device_id,
     email_hash,
-    session_id,
+    visitor_id,
   } = payload;
 
   const row: Record<string, unknown> = {
     event_type,
-    event_date: event_date ?? undefined,
+    event_time: event_time ?? undefined,
     source: source ?? null,
     device_type: device_type ?? null,
     country: country ?? null,
-    landing_page: landing_page ?? null,
+    page: page ?? null,
     platform: platform ?? null,
     app_version: app_version ?? null,
     transaction_id: transaction_id ?? null,
@@ -42,11 +43,12 @@ export function mapEventToClickHouse(payload: Omit<EventPayload, '_source'>): Re
     amount: amount != null ? amount : null,
     currency: currency ?? null,
     payment_method: payment_method ?? null,
+    card_type: card_type ?? null,
     message: message && Object.keys(message).length > 0 ? message : null,
     user_id: user_id ?? null,
     device_id: device_id ?? null,
     email_hash: email_hash ?? null,
-    session_id: session_id ?? null,
+    visitor_id: visitor_id ?? '',
   };
 
   // Remove undefined values so ClickHouse uses defaults

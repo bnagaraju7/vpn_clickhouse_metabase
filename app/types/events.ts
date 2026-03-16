@@ -18,7 +18,8 @@ export type DeviceType = 'Desktop' | 'Mobile' | 'Tablet' | 'Android' | 'Android 
 export type Platform = 'iOS' | 'Android' | 'web' | 'Windows' | 'iPadOS' | 'MacOS' | 'Linux' | 'Android TV' | 'Apple TV' | 'Other';
 export type LandingPage = 'homepage' | 'pricing' | 'sign up page' | 'checkout' | 'Other';
 export type Plan = 'Weekly' | 'Monthly' | '3-Month' | '6-Month' | 'Yearly';
-export type PaymentMethod = 'paypal' | 'stripe' | 'credit_card' | 'google_pay' | 'apple_pay';
+export type PaymentMethod = 'credit_card' | 'paypal' | 'google_pay';  // Credit Card, PayPal, Google Pay
+export type CardType = 'visa' | 'mastercard' | 'amex';
 export type Currency = 'USD' | 'EUR' | 'GBP' | 'Other';
 
 /** ISO 3166-1 alpha-2 country code (e.g. US, UK, DE) */
@@ -26,17 +27,17 @@ export type CountryCode = string;
 
 export interface WebEventBase {
   event_type: EventType;
-  /** Optional; defaults to today */
-  event_date?: string;
+  /** When event occurred (ISO 8601); server uses now() if omitted */
+  event_time?: string;
   source?: Source;
   device_type?: DeviceType;
   country?: CountryCode;
-  landing_page?: LandingPage;
+  page?: LandingPage;
   platform?: Platform;
   app_version?: string;
   user_id?: number;
   device_id?: string;
-  session_id?: string;
+  visitor_id?: string;
   /** SHA-512 hash of email (for PII-safe tracking) */
   email_hash?: string;
 }
@@ -55,6 +56,7 @@ export interface CheckoutMessage {
   plan_updated?: Plan;
   plan_purchased?: Plan;
   payment_method?: PaymentMethod;
+  card_type?: CardType;
   enter_email?: 'valid' | 'invalid';
 }
 
@@ -72,6 +74,7 @@ export interface WebEvent extends WebEventBase {
   amount?: number;
   currency?: Currency;
   payment_method?: PaymentMethod;
+  card_type?: CardType;
 }
 
 /** Payload sent from client/server to the API */

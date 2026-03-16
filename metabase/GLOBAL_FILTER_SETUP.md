@@ -20,10 +20,10 @@ This guide explains how to implement **dashboard-level global filters** that app
 | Device Type   | Text/Category  | `device_type`    | All dashboards            |
 | Platform      | Text/Category  | `platform`       | Sign Up & Sign In, Funnels|
 | Country       | Text/Category  | `country`        | All dashboards            |
-| Page / Landing | Text/Category  | `landing_page`   | User Acquisition (homepage, pricing, sign up page, checkout) |
+| Page / Landing | Text/Category  | `page`   | User Acquisition (homepage, pricing, sign up page, checkout) |
 | Traffic Source| Text/Category  | `source`         | User Acquisition         |
 | Plan          | Text/Category  | `plan_filter`    | Pricing funnel            |
-| Payment Method| Text/Category  | `payment_method` | Checkout funnel (values: paypal, stripe, credit_card, google_pay, apple_pay) |
+| Payment Method| Text/Category  | `payment_method` | Checkout funnel (values: credit_card, paypal, google_pay) |
 
 ---
 
@@ -70,7 +70,7 @@ For **Date Range** filters with ClickHouse, use two variables:
 
 1. Add **two** Date picker filters: "Date From" and "Date To"
 2. Or add **one** "Date Range" filter — Metabase may map it to `date_from` and `date_to` automatically
-3. In SQL: `WHERE event_date BETWEEN {{date_from}} AND {{date_to}}`
+3. In SQL: `WHERE toDate(event_time) BETWEEN {{date_from}} AND {{date_to}}`
 4. Set variable types: **Date** for both
 5. Set defaults: `date_from` = 30 days ago, `date_to` = Today
 
@@ -93,7 +93,7 @@ When you add `{{variable_name}}` in your SQL, Metabase shows a variable configur
 | `device_type`  | Text        | (empty)              | No       |
 | `platform`     | Text        | (empty)              | No       |
 | `country`      | Text        | (empty)              | No       |
-| `landing_page` | Text        | (empty)              | No       |
+| `page` | Text        | (empty)              | No       |
 | `source`       | Text        | (empty)              | No       |
 | `plan_filter`  | Text        | (empty)              | No       |
 | `payment_method`| Text       | (empty)              | No       |
@@ -107,7 +107,7 @@ When you add `{{variable_name}}` in your SQL, Metabase shows a variable configur
 Use `[[ AND column = {{variable}} ]]` so the filter is omitted when the variable is empty:
 
 ```sql
-WHERE event_date BETWEEN {{date_from}} AND {{date_to}}
+WHERE toDate(event_time) BETWEEN {{date_from}} AND {{date_to}}
   [[ AND signup_method = {{signup_method}} ]]
   [[ AND device_type = {{device_type}} ]]
 ```
@@ -177,7 +177,7 @@ If the dashboard has tabs:
 | Sign In Method  | `signin_method`| Sign In Started, Sign In Completed, Sign In Breakdown |
 | Platform        | `platform`     | Funnels (Magic Link, Password/OTP)  |
 | Country         | `country`      | All cards                           |
-| Page / Landing  | `landing_page` | Page Views, Checkout Incomplete      |
+| Page / Landing  | `page` | Page Views, Checkout Incomplete      |
 | Source          | `source`       | Page Views cards                    |
 | Plan            | `plan_filter`  | Pricing to Purchase funnel          |
 | Payment Method  | `payment_method` | Checkout to Purchase funnel      |

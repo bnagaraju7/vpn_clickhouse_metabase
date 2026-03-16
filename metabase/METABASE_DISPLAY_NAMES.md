@@ -24,7 +24,7 @@ Use these names when creating dashboards and questions in Metabase.
 | `device_type` | **Device Type** | Text / Dropdown |
 | `platform` | **Platform** | Text / Dropdown |
 | `country` | **Country** | Text / Dropdown |
-| `landing_page` | **Page** | Text / Dropdown |
+| `page` | **Page** | Text / Dropdown |
 | `source` | **Traffic Source** | Text / Dropdown |
 | `plan_filter` | **Plan** | Text / Dropdown |
 | `payment_method` | **Payment Method** | Text / Dropdown |
@@ -82,6 +82,6 @@ These aliases are used in the queries. Metabase shows them as column headers.
 | Page Views | `page` | **Page** |
 | Page Views | `source` | **Traffic Source** |
 | Page Views | `view_count` | **View Count** |
-| Checkout Abandonment | `event_date` | **Date** |
+| Checkout Abandonment | `toDate(event_time)` | **Date** |
 | Checkout Abandonment | `abandoned_count` | **Abandoned** |
 | Checkout Abandonment | `with_plan_selected` | **With Plan Selected** |

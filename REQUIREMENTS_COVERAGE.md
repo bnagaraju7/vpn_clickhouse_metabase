@@ -59,7 +59,7 @@ Verification against project scope: **Sign Up & Sign In** + **User Acquisition**
 | Sign In Method | ✅ | signin_method |
 | Platform | ✅ | platform |
 | Country | ✅ | country |
-| Page / Landing | ✅ | landing_page |
+| Page / Landing | ✅ | page |
 | Traffic Source | ✅ | source |
 | Plan | ✅ | plan_filter |
 | Payment Method | ✅ | payment_method |
@@ -71,7 +71,7 @@ Verification against project scope: **Sign Up & Sign In** + **User Acquisition**
 | Item | Status |
 |------|--------|
 | Unified events table | ✅ |
-| ReplacingMergeTree (deduplication) | ✅ |
+| ReplacingMergeTree (deduplicates by event_time, visitor_id) | ✅ |
 | Partitioning by month | ✅ |
 | Materialized views (signup, page views) | ✅ |
 | Enums (source, device_type, country, etc.) | ✅ |
