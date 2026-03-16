@@ -80,7 +80,7 @@ trackSignUpStarted(
 // Checkout
 trackCheckoutStarted(
   { plan_selected: 'Yearly', payment_method: 'paypal', enter_email: 'valid' },
-  { amount: 99.99, currency: 'USD', transaction_id: 'txn_123' }
+  { amount: 99.99, currency: 'USD', message: { transaction_id: 'txn_123' } }
 );
 
 // Abandonment (e.g. on beforeunload)

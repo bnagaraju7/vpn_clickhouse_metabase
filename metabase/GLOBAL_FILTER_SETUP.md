@@ -23,7 +23,7 @@ This guide explains how to implement **dashboard-level global filters** that app
 | Page / Landing | Text/Category  | `page`   | User Acquisition (homepage, pricing, sign up page, checkout) |
 | Traffic Source| Text/Category  | `source`         | User Acquisition         |
 | Plan          | Text/Category  | `plan_filter`    | Pricing funnel            |
-| Payment Method| Text/Category  | `payment_method` | Checkout funnel (values: credit_card, paypal, google_pay) |
+| Payment Method| Text/Category  | `message.payment_method` | Checkout funnel (values: credit_card, paypal, google_pay) |
 
 ---
 
@@ -180,7 +180,7 @@ If the dashboard has tabs:
 | Page / Landing  | `page` | Page Views, Checkout Incomplete      |
 | Source          | `source`       | Page Views cards                    |
 | Plan            | `plan_filter`  | Pricing to Purchase funnel          |
-| Payment Method  | `payment_method` | Checkout to Purchase funnel      |
+| Payment Method  | `message.payment_method` | Checkout to Purchase funnel      |
 
 ---
 

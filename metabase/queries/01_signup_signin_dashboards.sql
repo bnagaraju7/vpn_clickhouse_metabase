@@ -64,7 +64,7 @@ ORDER BY 3 DESC
 -- -----------------------------------------------------------------------------
 WITH funnel_steps AS (
     SELECT
-        coalesce(device_id, email_hash, visitor_id) AS user_key,
+        coalesce(toString(message.device_id), toString(message.email_hash), toString(visitor_id)) AS user_key,
         maxIf(1, event_type = 'signup_started') AS step1_landed,
         maxIf(1, event_type = 'signup_started' AND toString(message.enter_email) = 'valid') AS step2_valid_email,
         maxIf(1, event_type = 'signup_started' AND toString(message.signup_method) = 'magic link' AND toString(message.magic_link) = 'sent') AS step3_magic_link_sent,
@@ -97,7 +97,7 @@ SELECT '5. Account created', sum(step5_account_created), round(100.0 * sum(step5
 -- -----------------------------------------------------------------------------
 WITH funnel_steps AS (
     SELECT
-        coalesce(device_id, email_hash, visitor_id) AS user_key,
+        coalesce(toString(message.device_id), toString(message.email_hash), toString(visitor_id)) AS user_key,
         maxIf(1, event_type = 'signup_started') AS step1_landed,
         maxIf(1, event_type = 'signup_started' AND toString(message.signup_method) = 'email') AS step2_password_flow,
         maxIf(1, event_type = 'signup_started' AND toString(message.enter_email) = 'valid') AS step3_valid_email,

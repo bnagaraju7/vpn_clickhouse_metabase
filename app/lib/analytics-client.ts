@@ -1,5 +1,6 @@
 'use client';
 
+import { v4 as uuidV4 } from 'uuid';
 import type { WebEvent } from '../types/events';
 
 const DEFAULT_ENDPOINT = '/api/events';
@@ -11,7 +12,7 @@ function getOrCreateVisitorId(): string {
   try {
     let id = sessionStorage.getItem(VISITOR_STORAGE_KEY);
     if (!id) {
-      id = crypto.randomUUID();
+      id = uuidV4();
       sessionStorage.setItem(VISITOR_STORAGE_KEY, id);
     }
     return id;
@@ -175,8 +176,6 @@ export function trackPaymentMethodAdded(
   trackEvent({
     event_type: 'payment_method_added',
     message,
-    payment_method: (message?.payment_method ?? options?.payment_method) as WebEvent['payment_method'],
-    card_type: (message?.card_type ?? options?.card_type) as WebEvent['card_type'],
     ...options,
   });
 }

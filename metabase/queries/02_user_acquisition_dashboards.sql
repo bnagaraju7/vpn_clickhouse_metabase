@@ -85,15 +85,15 @@ ORDER BY 3 DESC
 -- plan_filter: Weekly, Monthly, 3-Month, 6-Month, Yearly (optional)
 -- -----------------------------------------------------------------------------
 WITH users_with_plan AS (
-    SELECT DISTINCT coalesce(device_id, visitor_id, email_hash) AS user_key
+    SELECT DISTINCT coalesce(toString(message.device_id), toString(visitor_id), toString(message.email_hash)) AS user_key
     FROM web_events.events
     WHERE toDate(event_time) BETWEEN {{date_from}} AND {{date_to}}
       AND event_type IN ('page_viewed', 'checkout_started', 'checkout_completed')
-      [[ AND (toString(message.plan_selected) = {{plan_filter}} OR toString(message.plan_updated) = {{plan_filter}} OR toString(message.plan_purchased) = {{plan_filter}}) ]]
+      [[ AND (toString(message.plan_selected) = {{plan_filter}} OR toString(message.plan_updated) = {{plan_filter}} OR toString(message.plan_purchased) = {{plan_filter}} OR toString(message.plans) = {{plan_filter}}) ]]
 ),
 funnel_steps AS (
     SELECT
-        coalesce(e.device_id, e.visitor_id, e.email_hash) AS user_key,
+        coalesce(toString(e.message.device_id), toString(e.visitor_id), toString(e.message.email_hash)) AS user_key,
         maxIf(1, e.event_type = 'page_viewed' AND e.page = 'pricing') AS step1_pricing_page,
         maxIf(1, e.event_type IN ('checkout_started', 'page_viewed') AND (toString(e.message.plan_selected) != '' OR toString(e.message.plan_updated) != '')) AS step2_plan_selected,
         maxIf(1, e.event_type = 'page_viewed' AND e.page = 'checkout') AS step3_checkout_page,
@@ -103,7 +103,7 @@ funnel_steps AS (
     FROM web_events.events e
     WHERE e.toDate(event_time) BETWEEN {{date_from}} AND {{date_to}}
       AND e.event_type IN ('page_viewed', 'checkout_started', 'checkout_completed')
-      AND coalesce(e.device_id, e.visitor_id, e.email_hash) IN (SELECT user_key FROM users_with_plan)
+      AND coalesce(toString(e.message.device_id), toString(e.visitor_id), toString(e.message.email_hash)) IN (SELECT user_key FROM users_with_plan)
     GROUP BY user_key
 )
 SELECT
@@ -130,7 +130,7 @@ SELECT '6. Purchase confirmed', sum(step6_purchase_confirmed), round(100.0 * sum
 -- -----------------------------------------------------------------------------
 WITH funnel_steps AS (
     SELECT
-        coalesce(device_id, visitor_id, email_hash) AS user_key,
+        coalesce(toString(message.device_id), toString(visitor_id), toString(message.email_hash)) AS user_key,
         maxIf(1, event_type = 'checkout_started') AS step1_checkout_started,
         maxIf(1, event_type IN ('checkout_started', 'checkout_completed') AND toString(message.enter_email) = 'valid') AS step2_email_entered,
         maxIf(1, event_type IN ('payment_method_added', 'checkout_started', 'checkout_completed') AND toString(message.payment_method) != '') AS step3_payment_selected,

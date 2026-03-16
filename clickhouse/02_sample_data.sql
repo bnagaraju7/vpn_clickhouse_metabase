@@ -2,30 +2,30 @@
 -- Sample data for testing dashboards
 -- Run after 01_schema_ddl.sql
 -- message = parsed event properties (JSON)
--- event_time required; visitor_id defaults to ''; event_date removed
+-- event_id required; event_time required; visitor_id required
 -- =============================================================================
 
--- Sign Up & Sign In events (event_time = toDateTime64 of date)
-INSERT INTO web_events.events (event_type, event_time, device_type, platform, country, source, page, app_version, message)
+-- Sign Up & Sign In events (event_time = toDateTime64 of date; device_id/email_hash in message for funnel user key)
+INSERT INTO web_events.events (event_id, event_type, event_time, device_type, platform, country, source, page, app_version, visitor_id, message)
 VALUES
-    ('signup_started', toDateTime64(today() - 1, 3, 'UTC'), 'Desktop', 'web', 'US', 'Google', 'sign up page', '2.1.0', '{"signup_method":"email","enter_email":"valid"}'),
-    ('signup_started', toDateTime64(today() - 1, 3, 'UTC'), 'Mobile', 'Android', 'UK', 'Social', 'homepage', '2.0.5', '{"signup_method":"google","enter_email":"valid"}'),
-    ('signup_started', toDateTime64(today(), 3, 'UTC'), 'Tablet', 'iOS', 'US', 'Google', 'pricing', '2.2.0', '{"signup_method":"magic link","enter_email":"valid","magic_link":"sent"}'),
-    ('signup_completed', toDateTime64(today() - 1, 3, 'UTC'), 'Desktop', 'web', 'US', 'Google', 'sign up page', '2.1.0', '{"signup_method":"email","enter_email":"valid","otp":"valid","account_creation":"Success"}'),
-    ('signup_completed', toDateTime64(today(), 3, 'UTC'), 'Mobile', 'Android', 'UK', 'Social', 'homepage', '2.0.5', '{"signup_method":"google","enter_email":"valid","account_creation":"Success"}'),
-    ('signin_started', toDateTime64(today(), 3, 'UTC'), 'Desktop', 'web', 'US', 'Google', 'sign up page', '2.2.0', '{"signin_method":"email","enter_email":"valid"}'),
-    ('signin_completed', toDateTime64(today(), 3, 'UTC'), 'Desktop', 'web', 'US', 'Google', 'sign up page', '2.2.0', '{"signin_method":"email","enter_email":"valid"}');
+    (generateUUIDv4(), 'signup_started', toDateTime64(today() - 1, 3, 'UTC'), 'Desktop', 'web', 'US', 'Google', 'sign up page', '2.1.0', toUUID('550e8400-e29b-41d4-a716-446655440001'), '{"signup_method":"email","enter_email":"valid","device_id":"d1"}'),
+    (generateUUIDv4(), 'signup_started', toDateTime64(today() - 1, 3, 'UTC'), 'Mobile', 'Android', 'UK', 'Social', 'homepage', '2.0.5', toUUID('550e8400-e29b-41d4-a716-446655440002'), '{"signup_method":"google","enter_email":"valid","device_id":"d2"}'),
+    (generateUUIDv4(), 'signup_started', toDateTime64(today(), 3, 'UTC'), 'Tablet', 'iOS', 'US', 'Google', 'pricing', '2.2.0', toUUID('550e8400-e29b-41d4-a716-446655440003'), '{"signup_method":"magic link","enter_email":"valid","magic_link":"sent","device_id":"d3"}'),
+    (generateUUIDv4(), 'signup_completed', toDateTime64(today() - 1, 3, 'UTC'), 'Desktop', 'web', 'US', 'Google', 'sign up page', '2.1.0', toUUID('550e8400-e29b-41d4-a716-446655440001'), '{"signup_method":"email","enter_email":"valid","otp":"valid","account_creation":"Success","device_id":"d1"}'),
+    (generateUUIDv4(), 'signup_completed', toDateTime64(today(), 3, 'UTC'), 'Mobile', 'Android', 'UK', 'Social', 'homepage', '2.0.5', toUUID('550e8400-e29b-41d4-a716-446655440002'), '{"signup_method":"google","enter_email":"valid","account_creation":"Success","device_id":"d2"}'),
+    (generateUUIDv4(), 'signin_started', toDateTime64(today(), 3, 'UTC'), 'Desktop', 'web', 'US', 'Google', 'sign up page', '2.2.0', toUUID('550e8400-e29b-41d4-a716-446655440004'), '{"signin_method":"email","enter_email":"valid","device_id":"d4"}'),
+    (generateUUIDv4(), 'signin_completed', toDateTime64(today(), 3, 'UTC'), 'Desktop', 'web', 'US', 'Google', 'sign up page', '2.2.0', toUUID('550e8400-e29b-41d4-a716-446655440004'), '{"signin_method":"email","enter_email":"valid","device_id":"d4"}');
 
--- User Acquisition events (page = page viewed, same as page_name)
-INSERT INTO web_events.events (event_type, event_time, source, device_type, country, app_version, platform, page, transaction_id, plans, subscription_status, amount, currency, payment_method, card_type, message)
+-- User Acquisition events (page = page viewed; transaction_id, device_id, plans, sub_status, amount, currency, payment_method, card_type in message)
+INSERT INTO web_events.events (event_id, event_type, event_time, source, device_type, country, app_version, platform, page, visitor_id, message)
 VALUES
-    ('page_viewed', toDateTime64(today() - 2, 3, 'UTC'), 'Google', 'Desktop', 'US', '2.0.3', 'web', 'homepage', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '{}'),
-    ('page_viewed', toDateTime64(today() - 2, 3, 'UTC'), 'Google', 'Desktop', 'US', '2.0.3', 'web', 'pricing', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '{}'),
-    ('page_viewed', toDateTime64(today() - 1, 3, 'UTC'), 'Social', 'Mobile', 'UK', '2.1.0', 'Android', 'pricing', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '{}'),
-    ('page_viewed', toDateTime64(today() - 1, 3, 'UTC'), 'Social', 'Mobile', 'UK', '2.1.0', 'Android', 'checkout', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '{}'),
-    ('checkout_started', toDateTime64(today() - 1, 3, 'UTC'), 'Social', 'Mobile', 'UK', '2.1.0', 'Android', 'checkout', 'txn_uk_001', '6-Month', NULL, 29.99, 'GBP', 'credit_card', 'visa', '{"plan_selected":"6-Month","payment_method":"credit_card","enter_email":"valid"}'),
-    ('checkout_completed', toDateTime64(today() - 1, 3, 'UTC'), 'Social', 'Mobile', 'UK', '2.1.0', 'Android', 'checkout', 'txn_uk_001', '6-Month', 'active', 29.99, 'GBP', 'credit_card', 'visa', '{"plan_purchased":"6-Month","payment_method":"credit_card"}'),
-    ('page_viewed', toDateTime64(today(), 3, 'UTC'), 'Google', 'Desktop', 'US', '2.2.0', 'web', 'pricing', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '{}'),
-    ('checkout_started', toDateTime64(today(), 3, 'UTC'), 'Google', 'Desktop', 'US', '2.2.0', 'web', 'checkout', 'txn_us_002', 'Yearly', NULL, 99.99, 'USD', 'paypal', NULL, '{"plan_selected":"Yearly","plan_updated":"Yearly","payment_method":"paypal","enter_email":"valid"}'),
-    ('payment_method_added', toDateTime64(today(), 3, 'UTC'), NULL, 'Desktop', 'US', '2.2.0', 'web', NULL, NULL, NULL, NULL, NULL, 'paypal', NULL, '{"payment_method":"paypal"}'),
-    ('checkout_incomplete', toDateTime64(today() - 1, 3, 'UTC'), 'Social', 'Mobile', 'UK', '2.1.0', 'Android', 'checkout', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '{"plan_selected":"6-Month"}');
+    (generateUUIDv4(), 'page_viewed', toDateTime64(today() - 2, 3, 'UTC'), 'Google', 'Desktop', 'US', '2.0.3', 'web', 'homepage', toUUID('550e8400-e29b-41d4-a716-446655440011'), '{"device_id":"ua1"}'),
+    (generateUUIDv4(), 'page_viewed', toDateTime64(today() - 2, 3, 'UTC'), 'Google', 'Desktop', 'US', '2.0.3', 'web', 'pricing', toUUID('550e8400-e29b-41d4-a716-446655440011'), '{"device_id":"ua1"}'),
+    (generateUUIDv4(), 'page_viewed', toDateTime64(today() - 1, 3, 'UTC'), 'Social', 'Mobile', 'UK', '2.1.0', 'Android', 'pricing', toUUID('550e8400-e29b-41d4-a716-446655440012'), '{"device_id":"ua2"}'),
+    (generateUUIDv4(), 'page_viewed', toDateTime64(today() - 1, 3, 'UTC'), 'Social', 'Mobile', 'UK', '2.1.0', 'Android', 'checkout', toUUID('550e8400-e29b-41d4-a716-446655440012'), '{"device_id":"ua2"}'),
+    (generateUUIDv4(), 'checkout_started', toDateTime64(today() - 1, 3, 'UTC'), 'Social', 'Mobile', 'UK', '2.1.0', 'Android', 'checkout', toUUID('550e8400-e29b-41d4-a716-446655440012'), '{"plan_selected":"6-Month","plans":"6-Month","amount":29.99,"currency":"GBP","payment_method":"credit_card","card_type":"visa","enter_email":"valid","transaction_id":"txn_uk_001","device_id":"ua2"}'),
+    (generateUUIDv4(), 'checkout_completed', toDateTime64(today() - 1, 3, 'UTC'), 'Social', 'Mobile', 'UK', '2.1.0', 'Android', 'checkout', toUUID('550e8400-e29b-41d4-a716-446655440012'), '{"plan_purchased":"6-Month","plans":"6-Month","sub_status":"active","amount":29.99,"currency":"GBP","payment_method":"credit_card","card_type":"visa","transaction_id":"txn_uk_001","device_id":"ua2"}'),
+    (generateUUIDv4(), 'page_viewed', toDateTime64(today(), 3, 'UTC'), 'Google', 'Desktop', 'US', '2.2.0', 'web', 'pricing', toUUID('550e8400-e29b-41d4-a716-446655440013'), '{"device_id":"ua3"}'),
+    (generateUUIDv4(), 'checkout_started', toDateTime64(today(), 3, 'UTC'), 'Google', 'Desktop', 'US', '2.2.0', 'web', 'checkout', toUUID('550e8400-e29b-41d4-a716-446655440013'), '{"plan_selected":"Yearly","plan_updated":"Yearly","plans":"Yearly","amount":99.99,"currency":"USD","payment_method":"paypal","enter_email":"valid","transaction_id":"txn_us_002","device_id":"ua3"}'),
+    (generateUUIDv4(), 'payment_method_added', toDateTime64(today(), 3, 'UTC'), NULL, 'Desktop', 'US', '2.2.0', 'web', NULL, toUUID('550e8400-e29b-41d4-a716-446655440013'), '{"payment_method":"paypal","device_id":"ua3"}'),
+    (generateUUIDv4(), 'checkout_incomplete', toDateTime64(today() - 1, 3, 'UTC'), 'Social', 'Mobile', 'UK', '2.1.0', 'Android', 'checkout', toUUID('550e8400-e29b-41d4-a716-446655440014'), '{"plan_selected":"6-Month","device_id":"ua4"}');

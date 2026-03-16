@@ -71,11 +71,11 @@ Verification against project scope: **Sign Up & Sign In** + **User Acquisition**
 | Item | Status |
 |------|--------|
 | Unified events table | ✅ |
-| ReplacingMergeTree (deduplicates by event_time, visitor_id) | ✅ |
+| ReplacingMergeTree (deduplicates by event_id) | ✅ |
 | Partitioning by month | ✅ |
 | Materialized views (signup, page views) | ✅ |
-| Enums (source, device_type, country, etc.) | ✅ |
-| PaymentMethodEnum (paypal, stripe, credit_card, google_pay, apple_pay) | ✅ |
+| Enums (device_type, os_type, platform, plans, sub_status) | ✅ |
+| LowCardinality (source, page, currency, payment_method, card_type) | ✅ |
 | message JSON for event properties | ✅ |
 
 ---

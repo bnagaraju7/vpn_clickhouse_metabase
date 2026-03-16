@@ -21,7 +21,7 @@ We propose moving to a structured, unified event schema using ClickHouse's Repla
 
 ### Key Technical Upgrades
 
-- **ReplacingMergeTree Engine:** Automatically handles event deduplication by ORDER BY key (event_time, visitor_id), ensuring your dashboards always report accurate numbers.
+- **ReplacingMergeTree Engine:** Automatically handles event deduplication by ORDER BY key (event_id), ensuring your dashboards always report accurate numbers.
 - **Optimized Column Types:** Heavy use of LowCardinality(String) and Enum8 for dimensions like source, device_type, and platform. This drastically reduces storage size and accelerates filter/aggregation queries.
 - **Native JSON Support:** Replaces the raw string column with ClickHouse's Native JSON type (requires v25.3+), allowing dynamic event properties to be queried much faster.
 - **Automated Lifecycle Management:** Monthly partitioning (toYYYYMM) ensures queries scanning specific date ranges are lightning-fast.
@@ -33,6 +33,7 @@ We propose moving to a structured, unified event schema using ClickHouse's Repla
 | Data Format | Unstructured (Raw JSON String) | Structured Columns + Native JSON | Queries will execute exponentially faster; simpler SQL for analysts. |
 | Deduplication | None (MergeTree) | Automated (ReplacingMergeTree) | Guaranteed accuracy for critical metrics like sign-ups and payments. |
 | Storage Engine | Standard table | Partitioned by Month | Reduced cloud infrastructure costs and efficient date-range queries. |
+| ORDER BY | N/A or arbitrary | (event_id) | Deterministic deduplication; unique event_id per row. |
 | Key Dimensions | Hidden inside JSON payload | Top-level optimized columns | Instant filtering by Country, Device, Traffic Source, and Subscription Plan. |
 
 ---
@@ -44,33 +45,43 @@ CREATE DATABASE IF NOT EXISTS web_events;
 
 CREATE TABLE IF NOT EXISTS web_events.events
 (
-    visitor_id        LowCardinality(String) DEFAULT '',
+    event_id          UUID,
+    visitor_id        UUID,
+    user_id           Nullable(UUID),
     event_type        LowCardinality(String),
     event_time        DateTime64(3, 'UTC') DEFAULT now64(3),
     source            Nullable(LowCardinality(String)),
     device_type       Nullable(Enum8('Desktop' = 1, 'Mobile' = 2, 'Tablet' = 3, 'Android' = 4, 'Android TV' = 5, 'Apple TV' = 6)),
     os_type           Nullable(Enum8('Mac' = 1, 'Android' = 2, 'Windows' = 3, 'Linux' = 4, 'iOS' = 5, 'Other' = 6)),
     country           Nullable(LowCardinality(String)),
-    page      Nullable(LowCardinality(String)),
+    page              Nullable(LowCardinality(String)),
     platform          Nullable(Enum8('iOS' = 1, 'Android' = 2, 'web' = 3, 'Windows' = 4, 'iPadOS' = 5, 'MacOS' = 6, 'Linux' = 7, 'Android TV' = 8, 'Apple TV' = 9, 'Other' = 10)),
     app_version       Nullable(LowCardinality(String)),
-    transaction_id    Nullable(LowCardinality(String)),
-    plans             Nullable(Enum8('Weekly' = 1, 'Monthly' = 2, '3-Month' = 3, '6-Month' = 4, 'Yearly' = 5)),
-    subscription_status Nullable(Enum8('active' = 1, 'cancelled' = 2, 'canceled' = 3, 'expired' = 4, 'in_trial' = 5, 'past_due' = 6, 'incomplete_expired' = 7, 'free_trial' = 8)),
-    amount            Nullable(Decimal64(2)),
-    currency          Nullable(Enum8('USD' = 1, 'EUR' = 2, 'GBP' = 3, 'Other' = 4)),
-    payment_method    Nullable(LowCardinality(String)),
-    card_type         Nullable(LowCardinality(String)),
-    message           Nullable(JSON),
-    user_id           Nullable(UInt64),
-    device_id         Nullable(LowCardinality(String)),
-    email_hash        Nullable(LowCardinality(String))
+    message           Nullable(JSON)
 )
 ENGINE = ReplacingMergeTree()
 PARTITION BY toYYYYMM(event_time)
-ORDER BY (event_time, visitor_id)
+ORDER BY (event_id)
 SETTINGS index_granularity = 8192;
 ```
+
+### Schema Column Reference
+
+| Column | Type | Notes |
+|--------|------|-------|
+| event_id | UUID | Required; UUID for deduplication |
+| visitor_id | UUID | Required; client-generated |
+| user_id | Nullable(UUID) | Optional |
+| event_type | LowCardinality(String) | signup_started, page_viewed, etc. |
+| event_time | DateTime64(3, 'UTC') | Default now64(3); partition key |
+| source | Nullable(LowCardinality(String)) | Google, Social, Direct, etc. |
+| device_type | Nullable(Enum8) | Desktop, Mobile, Tablet, etc. |
+| os_type | Nullable(Enum8) | Mac, Android, Windows, etc. |
+| country | Nullable(LowCardinality(String)) | ISO 3166-1 alpha-2 |
+| page | Nullable(LowCardinality(String)) | homepage, pricing, checkout, etc. |
+| platform | Nullable(Enum8) | iOS, Android, web, etc. |
+| app_version | Nullable(LowCardinality(String)) | e.g. 1.2.3 |
+| message | Nullable(JSON) | transaction_id, device_id, email_hash in message; also plans, sub_status, amount, currency, payment_method, card_type for checkout events |
 
 ---
 
@@ -94,6 +105,8 @@ SETTINGS index_granularity = 8192;
 
 **Use separate tables only if:** event types differ significantly in schema, retention, or access control requirements.
 
+**Note:** Later, based on need, we can create Materialized views.
+
 ---
 
 ## Question 2: Column Types
@@ -106,13 +119,13 @@ SETTINGS index_granularity = 8192;
 |--------|----------------|-----------|
 | **source** | `LowCardinality(String)` | Easy to add new values (e.g., "TikTok") without ALTER |
 | **page_name / page** | `LowCardinality(String)` | Same flexibility for dynamic page catalogs |
-| **Nullable fields (card_type, etc.)** | `Nullable(LowCardinality(String))` | Use `Nullable()` for optional event-specific fields |
+| **Nullable fields (card_type, etc.)** | In `message` JSON | Use `message.card_type`, `message.payment_method`, etc. for optional event-specific fields |
 
 **LowCardinality vs Enum:**
 - **LowCardinality(String):** Flexible; good when values evolve (new sources, pages).
 - **Enum8/Enum16:** Strict and compact, but requires `ALTER` for new values.
 
-**card_type:** Use `Nullable(LowCardinality(String))` – only populated when `payment_method` is Credit Card.
+**card_type:** In `message` JSON – only populated when `payment_method` is Credit Card.
 
 ---
 
@@ -136,16 +149,9 @@ SETTINGS index_granularity = 8192;
 
 ### Answer
 
-**Recommendation: Use `visitor_id`** (renamed from session_id for clarity).
+**Current approach:** We use `visitor_id`, stored in a cookie with a 1-year expiry. This identifies returning visitors and groups their page views across visits.
 
-**Approach:**
-1. **Client-generated:** Generate UUID on first page load; persist in `sessionStorage` for the browser tab session.
-2. **Server-assigned:** If client does not send it, assign `generateUUIDv4()` on insert.
-3. **Session boundaries:** 30 minutes of inactivity, or explicit end (e.g., logout).
-
-**Implementation:** `getOrCreateVisitorId()` in analytics client – stored in `sessionStorage` under `analytics_visitor_id`.
-
-**Query usage:** Funnels use `coalesce(device_id, visitor_id, email_hash)` as the user key for grouping.
+**Future:** If needed, we can add a separate `session_id` cookie for session-level grouping (e.g., shorter-lived sessions within a visit).
 
 ---
 
@@ -155,14 +161,7 @@ SETTINGS index_granularity = 8192;
 
 ### Answer
 
-| Query Pattern | Example | Optimization |
-|---------------|---------|--------------|
-| **Daily page views by source** | `GROUP BY toDate(event_time), page, source` | Materialized view `mv_daily_page_views` |
-| **Weekly conversion funnels** | Magic Link, Password/OTP, Pricing→Purchase | `ORDER BY (event_time, visitor_id)`; consider funnel-specific MVs if volume grows |
-| **Date-range filters** | `toDate(event_time) BETWEEN {{date_from}} AND {{date_to}}` | Partition pruning via `toYYYYMM(event_time)` |
-| **Event-type filters** | `event_type = 'page_viewed'` | `event_type` in ORDER BY key |
-
-**Existing MVs:** `mv_daily_signup_started`, `mv_daily_signup_completed`, `mv_daily_page_views`.
+Once we start loading real data, we'll analyze actual query patterns and recommend optimizations accordingly.
 
 ---
 
@@ -172,16 +171,7 @@ SETTINGS index_granularity = 8192;
 
 ### Answer
 
-| Events/Day | Rows/Month | Notes |
-|------------|------------|-------|
-| 10K | ~300K | Single node, default settings |
-| 100K | ~3M | Consider `index_granularity = 16384` |
-| 1M+ | 30M+ | Sharding, possibly `ReplicatedMergeTree` |
-
-**Current configuration:**
-- **Partitioning:** `PARTITION BY toYYYYMM(event_time)` – monthly partitions
-
-**Recommendation:** Define expected volume; adjust `index_granularity` accordingly.
+Once we start loading real data, we'll analyze actual query patterns and recommend optimizations accordingly.
 
 ---
 
@@ -193,8 +183,7 @@ SETTINGS index_granularity = 8192;
 
 | Setting | Recommendation |
 |--------|-----------------|
-| **Query timeout** | 60–120 seconds for heavy funnel queries |
-| **Caching** | Enable; 24h for dashboards, 1h for ad-hoc |
+| **Caching** | 1h cache; we'll adjust based on need |
 | **Connection** | Use native HTTP or JDBC; HTTP preferred for simplicity |
 | **Sync metadata** | Limit to `web_events` database to avoid long syncs |
 | **FINAL usage** | Use `FINAL` only when deduplication is required; most aggregates work without it |
@@ -207,19 +196,7 @@ SETTINGS index_granularity = 8192;
 
 ### Answer
 
-| Audience | Pattern | Implications |
-|----------|----------|--------------|
-| **Analysts (SQL)** | Ad-hoc queries, Metabase | Document schema; ensure MVs and filters are available |
-| **Dashboards only** | Predefined Metabase questions | Optimize MVs for these queries |
-| **Application layer** | API-driven inserts; no direct reads | Keep insert path simple; no special DDL needs |
-
-**Current setup:** Analysts + dashboards. Unified table and MVs are sufficient; add more MVs only if specific queries become slow.
-
----
-
-## Note: Deduplication
-
-**ReplacingMergeTree** deduplicates by ORDER BY key `(event_time, visitor_id)`. Same visitor + same timestamp = one row kept. Different event types at same timestamp = separate rows (different event_type values).
+We currently assume analysts and dashboards will use this data. If we need to expose it to customer-facing applications, we'll create materialized views optimized for that use case.
 
 ---
 
